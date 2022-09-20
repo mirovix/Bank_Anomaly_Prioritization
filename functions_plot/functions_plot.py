@@ -12,8 +12,11 @@ import itertools
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
 from sklearn.metrics import RocCurveDisplay, precision_recall_fscore_support, auc
 import seaborn as sns
+
+folder = 'train/models/plots/'
 
 
 def plot_confusion_matrix(cm, classes,
@@ -24,7 +27,7 @@ def plot_confusion_matrix(cm, classes,
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         print("Normalized confusion matrix")
     else:
-        print('Confusion matrix, without normalization')
+        print('Confusion matrix')
 
     print(cm)
 
@@ -45,6 +48,7 @@ def plot_confusion_matrix(cm, classes,
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.tight_layout()
+    plt.savefig(folder+title+".png")
 
 
 def plot_roc(y_pred, y_test_arr, pos_label, num=3):
@@ -65,7 +69,8 @@ def plot_roc(y_pred, y_test_arr, pos_label, num=3):
             pos_label=pos_label,
             ax=ax,
         )
-        print(">> evaluation per fold label "+str(pos_label)+" "+str(precision_recall_fscore_support(y_test_arr[i], y_pred[i])))
+        print(">> evaluation per fold label " + str(pos_label) + " " + str(
+            precision_recall_fscore_support(y_test_arr[i], y_pred[i])))
         interp_tpr = np.interp(mean_fpr, viz.fpr, viz.tpr)
         interp_tpr[0] = 0.0
         tprs.append(interp_tpr)
@@ -104,6 +109,7 @@ def plot_roc(y_pred, y_test_arr, pos_label, num=3):
         title="",
     )
     ax.legend(loc="lower right")
+    plt.savefig(folder+"roc_"+str(pos_label)+".png")
     plt.show()
 
 
@@ -123,4 +129,153 @@ def plot_feature_importance(importance, names, model_type):
     plt.title(model_type + 'FEATURE IMPORTANCE')
     plt.xlabel('FEATURE IMPORTANCE')
     plt.ylabel('FEATURE NAMES')
+    plt.show()
+
+
+def weights_definition(correct_prediction_tp, correct_prediction_tn, wrong_prediction_fn, wrong_prediction_fp):
+    len_predictions = (len(correct_prediction_tp + correct_prediction_tn + wrong_prediction_fn + wrong_prediction_fp))
+    w1 = np.ones_like(correct_prediction_tp) / len_predictions
+    w2 = np.ones_like(correct_prediction_tn) / len_predictions
+    w3 = np.ones_like(wrong_prediction_fn) / len_predictions
+    w4 = np.ones_like(wrong_prediction_fp) / len_predictions
+    return [w1, w2, w3, w4]
+
+
+def threshold_legend_plot(ax, threshold, f1_threshold, legend_1=None, legend_2=None):
+    if legend_2 is None:
+        legend_2 = []
+    if legend_1 is None:
+        legend_1 = []
+    for i, th in enumerate(threshold):
+        ax[0].axvline(th, color='black')
+        legend_1.append('soglia ' + str(i) + ' ' + str("{:10.2f}".format(th)))
+        ax[1].axvline(th, color='black')
+        legend_2.append('soglia ' + str(i) + ' ' + str("{:10.2f}".format(th)))
+    ax[0].axvline(f1_threshold, color='blue')
+    legend_1.append('soglia f1 ' + str("{:10.2f}".format(f1_threshold)))
+    ax[1].axvline(f1_threshold, color='blue')
+    legend_2.append('soglia f1 ' + str("{:10.2f}".format(f1_threshold)))
+    return ax, legend_1, legend_2
+
+
+def plot_wrong_predictions(wrong_prediction_fn, wrong_prediction_fp, threshold, f1_threshold, name, weights, bins=20):
+    fig, ax = plt.subplots(2, 1)
+    hist_fn, _, patches_fn = ax[0].hist([wrong_prediction_fn], bins, weights=[weights[2]])
+    hist_fp, _, patches_fp = ax[1].hist([wrong_prediction_fp], bins, weights=[weights[3]])
+
+    ax[0].cla()
+    ax[1].cla()
+
+    ax[0].hist([wrong_prediction_fn], bins, alpha=0.75, label=['fn'], color=['red'])
+    ax[1].hist([wrong_prediction_fp], bins, alpha=0.75, label=['fp'], color=['red'])
+
+    legend_fn = ['fn ' + str("{:10.3f}".format(np.sum(hist_fn) * 100)) + '%']
+    legend_fp = ['fp ' + str("{:10.3f}".format(np.sum(hist_fp) * 100)) + '%']
+    ax, legend_fn, legend_fp = threshold_legend_plot(ax, threshold, f1_threshold, legend_fn, legend_fp)
+
+    for e in ax:
+        e.set_xlabel('Distribuzione delle probabilità')
+        e.set_ylabel('Numero elementi')
+        e.set_xlim(-0.05, 1)
+
+    ax[0].set_title('Istogramma dei falsi negativi discovery ' + name)
+    ax[0].legend(legend_fn, loc='upper left')
+    ax[1].set_title('Istogramma dei falsi positivi discovery ' + name)
+    ax[1].legend(legend_fp, loc='upper right')
+
+    plt.subplots_adjust(hspace=0.5)
+    fig.set_size_inches(18, 10)
+    plt.savefig(folder+"wrong_prediction_"+name+".png")
+    plt.show()
+
+
+def plot_predictions(correct_prediction_tp, correct_prediction_tn, wrong_prediction_fn, wrong_prediction_fp, threshold,
+                     f1_threshold, name, weights, bins=15):
+    fig, ax = plt.subplots(2, 1)
+    ax[0].hist([correct_prediction_tp], bins, alpha=0.75, label=['tp'], color=['green'], weights=[weights[0]])
+    ax[1].hist([correct_prediction_tn], bins, alpha=0.75, label=['tn'], color=['green'], weights=[weights[1]])
+
+    legend_tp, legend_tn = ['tp'], ['tn']
+    ax, legend_tp, legend_tn = threshold_legend_plot(ax, threshold, f1_threshold, legend_tp, legend_tn)
+    ax[0].legend(legend_tp, loc='upper left')
+    ax[1].legend(legend_tn, loc='upper right')
+
+    for e in ax:
+        e.set_xlabel('Distribuzione delle probabilità')
+        e.set_ylabel('Probabilità')
+        e.set_xlim(-0.05, 1)
+
+    ax[0].set_title('Istogramma veri positivi del discovery ' + name)
+    ax[1].set_title('Istogramma veri negativi del discovery ' + name)
+
+    plt.subplots_adjust(hspace=0.8)
+    fig.set_size_inches(16, 8)
+    plt.savefig(folder+"correct_prediction_"+name+".png")
+    plt.show()
+
+    fig, ax = plt.subplots()
+    counts, bins, patches = ax.hist(
+        [correct_prediction_tp, correct_prediction_tn], bins, alpha=0.75,
+        label=['tn', 'tp', 'fn', 'fp'], color=['green', 'green'], weights=[weights[0], weights[1]])
+
+    for p in patches:
+        p.datavalues *= 100
+        ax.bar_label(p, fmt='%.3f')
+
+    fig.set_size_inches(22, 10)
+    plt.axvline(f1_threshold, label='threshold')
+    ax.set_xlabel('Bins')
+    ax.set_ylabel('Probability')
+    ax.set_title('Histogram of predictions ' + name)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.legend()
+    plt.savefig(folder+"all_correct_prediction_"+name+".png")
+    plt.show()
+
+
+def plot_table_soglie(input_data):
+    soglie_predictions, soglie_errors, thresholds, name = input_data
+    fig, ax = plt.subplots(1, 1)
+    data = [[soglie_predictions[0], soglie_errors[0][0], soglie_errors[1][0], 'Molto Bassa'],
+            [soglie_predictions[1], soglie_errors[0][1], soglie_errors[1][1], 'Bassa'],
+            [soglie_predictions[2], soglie_errors[0][2], soglie_errors[1][2], 'Media'],
+            [soglie_predictions[3], soglie_errors[0][3], soglie_errors[1][3], 'Alta']]
+    column_labels = ["Predizioni", "Errori (fn)", "Errori (fp)", "Priorità"]
+    ax.set_title('Tabella soglie del discovery ' + name)
+    ax.axis('tight')
+    ax.axis('off')
+    ax.table(cellText=data, colLabels=column_labels, loc="center")
+    plt.savefig(folder+"table_"+name+".png")
+    plt.show()
+
+
+def plot_loss(history):
+    plt.figure(figsize=(10, 6))
+    plt.plot(history.epoch, history.history['loss'], label='loss')
+    plt.plot(history.epoch, history.history['val_loss'], label='val_loss')
+    plt.title('loss')
+    plt.legend()
+    plt.show()
+
+
+def plot_precision(history):
+    plt.figure(figsize=(10, 6))
+    plt.plot(history.epoch, history.history['precision_1'], label='precision_1')
+    plt.plot(history.epoch, history.history['val_precision_1'], label='val_precision_1')
+    plt.plot(history.epoch, history.history['precision_3'], label='precision_3')
+    plt.plot(history.epoch, history.history['val_precision_3'], label='val_precision_3')
+    plt.title('precision')
+    plt.legend()
+    plt.show()
+
+
+def plot_recall(history):
+    plt.figure(figsize=(10, 6))
+    plt.plot(history.epoch, history.history['recall_1'], label='recall_1')
+    plt.plot(history.epoch, history.history['val_recall_1'], label='val_recall_1')
+    plt.plot(history.epoch, history.history['recall_3'], label='recall_3')
+    plt.plot(history.epoch, history.history['val_recall_3'], label='val_recall_3')
+    plt.title('recall')
+    plt.legend()
     plt.show()

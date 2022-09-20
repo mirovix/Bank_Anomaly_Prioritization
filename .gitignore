@@ -157,3 +157,7 @@ data/*
 documentations_ML/*
 pre_processing_features/Datawig/imputer_models/*
 train/models/*
+test/errors.csv
+*.npy
+*.npy
+*.joblib

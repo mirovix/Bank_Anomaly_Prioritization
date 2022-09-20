@@ -20,7 +20,7 @@ class BuildFeatures:
                  variance_threshold_1=0.80, variance_threshold_2=0.75, variance_threshold_filiale=35,
                  min_age=11, max_age=110, step_age=10, causali_version=14,
                  path_x="../data/dataset_x.csv", path_y="../data/dataset_y.csv",
-                 path_x_evaluated="../data/dataset_x_evaluated.csv"):
+                 path_x_evaluated="../data/dataset_x_evaluated.csv", production=False):
         start = datetime.now()
         if months is None:
             months = [3, 6]
@@ -30,7 +30,7 @@ class BuildFeatures:
         self.data = DataFeatures(csv_data, max_elements, prefix, months, range_repetitiveness,
                                  variance_threshold_1, variance_threshold_2, variance_threshold_filiale,
                                  min_age, max_age, step_age, causali_version,
-                                 path_x, path_y, path_x_evaluated)
+                                 path_x, path_y, path_x_evaluated, production)
 
         print(">> csv files loaded in ", datetime.now() - start)
         self.print_info()
@@ -53,20 +53,27 @@ class BuildFeatures:
         print(">> step age for clustering ", self.data.step_age)
         print(">> range repetitiveness [%] ", self.data.range_repetitiveness * 100)
         print(">> causal analytical grouping version ", self.data.causali_version)
+        print(">> production ", self.data.production)
 
-    def get_dataset_discovery_day(self):
-        self.data.max_elements = self.data.max_elements_day
+    def get_dataset_discovery_day(self, max_elements=None):
+        if max_elements is None:
+            self.data.max_elements = self.data.max_elements_day
+        else:
+            self.data.max_elements = max_elements
         start = datetime.now()
         print("\n>> DISCOVERY DAY AND ACCOUNTS FEATURES")
         DayFeatureBuild(self.data).build()
         print("   >> discovery day and accounts features done in ", datetime.now() - start)
 
-    def get_dataset_discovery_comportamenti(self):
-        self.data.max_elements = self.data.max_elements_comportamenti
+    def get_dataset_discovery_comportamenti(self, max_elements=None):
+        if max_elements is None:
+            self.data.max_elements = self.data.max_elements_comportamenti
+        else:
+            self.data.max_elements = max_elements
 
         start = datetime.now()
         print("\n>> OPERATIONS AND ACCOUNTS FEATURES")
-        OperationsAccountsFeatureBuild(self.data).build()
+        OperationsAccountsFeatureBuild(self.data, self.data.evaluations_subjects_comportamenti).build()
         print("   >> operations and accounts features done in ", datetime.now() - start)
 
         start = datetime.now()
@@ -74,37 +81,56 @@ class BuildFeatures:
         EvaluationAnagraficaFeatureBuild(self.data, self.data.evaluations_subjects_comportamenti).build()
         print("   >> anagrafica and evaluation features done in ", datetime.now() - start)
 
-    def get_dataset_day_comportamenti(self):
-        self.get_dataset_discovery_comportamenti()
+    def get_dataset_day_comportamenti(self, elements_day, elements_comp):
+        self.get_dataset_discovery_comportamenti(max_elements=elements_comp)
         comportamenti_x, comportamenti_y = self.data.x, self.data.y
         self.data.x, self.data.y = pd.DataFrame(), pd.DataFrame()
 
-        self.get_dataset_discovery_day()
-        self.data.y.replace(to_replace=0, value=2, inplace=True)
-        self.data.y.replace(to_replace=1, value=3, inplace=True)
+        self.get_dataset_discovery_day(max_elements=elements_day)
+        if self.data.production is False:
+            self.data.y.replace(to_replace=0, value=2, inplace=True)
+            self.data.y.replace(to_replace=1, value=3, inplace=True)
         day_col_x = self.data.x.columns
 
         self.data.x = pd.concat([comportamenti_x, self.data.x], ignore_index=True, sort=False)
         self.data.y = pd.concat([comportamenti_y, self.data.y], ignore_index=True, sort=False)
 
+        fill_with_string = ['AMOUNT_OPERATION', 'AMOUNT_OPERATION_CASH', 'RISK_PROFILE_EXECUTOR']
+        self.fill_identificativi_vari(fill_with_string, comportamenti_x, day_col_x)
         for col in self.data.x.columns:
             if (col in comportamenti_x.columns and col not in day_col_x) or \
                     (col in day_col_x and col not in comportamenti_x.columns):
-                if self.data.x[col].dtypes == object:
-                    self.data.x[col].fillna("OTHER_DB", inplace=True)
+                if col in fill_with_string:
+                    self.data.x[col].fillna(-1, inplace=True, limit=self.data.max_elements_comportamenti)
                 else:
-                    self.data.x[col].fillna(-1, inplace=True)
+                    self.data.x[col].fillna("OTHER_DB", inplace=True, limit=self.data.max_elements_comportamenti)
         return
 
-    def get_dataset(self, discovery_day=False, discovery_comportamenti=False):
-        if discovery_day is True and discovery_comportamenti is False:
-            self.get_dataset_discovery_day()
-        elif discovery_day is False and discovery_comportamenti is True:
-            self.get_dataset_discovery_comportamenti()
-        elif discovery_day is True and discovery_comportamenti is True:
-            self.get_dataset_day_comportamenti()
+    def fill_identificativi_vari(self, list_int, comportamenti_x, day_col_x):
+        for i, operation in enumerate(self.data.evaluations_subjects_day.CODE_OPERATION.values.tolist()):
+            if i >= self.data.max_elements:
+                break
+            if operation == 'Identificativi vari':
+                for col in self.data.x.columns:
+                    if (col in comportamenti_x.columns and col not in day_col_x) or \
+                            (col in day_col_x and col not in comportamenti_x.columns):
+                        if col in list_int:
+                            self.data.x.at[i, col] = -2
+                        else:
+                            self.data.x.at[i, col] = "IDENT_VARI"
 
-        return self.data.x, self.data.y
+    def get_dataset(self, discovery_day=False, discovery_comportamenti=False):
+        elements_day, elements_comp = None, None
+        if discovery_day is True and discovery_comportamenti is False:
+            elements_comp, elements_day = 0, None
+        elif discovery_day is False and discovery_comportamenti is True:
+            elements_day, elements_comp = 0, None
+        self.get_dataset_day_comportamenti(elements_day, elements_comp)
+        self.data.x.set_index('ID', inplace=True)
+        if self.data.production is False:
+            return self.data.x, self.data.y
+        else:
+            return self.data.x
 
     def extract_evaluation_found(self):
         rows_to_del = (self.data.y.index[self.data.y.EVALUATION == 0]).values.tolist()
@@ -112,21 +138,24 @@ class BuildFeatures:
         return self.data.x_evaluated
 
     def save_dataset_csv(self):
-        self.data.x.to_csv(self.data.path_x, index=False)
-        self.data.y.to_csv(self.data.path_y, index=False)
-        self.data.x_evaluated.to_csv(self.data.path_x_evaluated, index=False)
+        self.data.x.to_csv(self.data.path_x)
         print("\n>> dataset_x is saved in ", self.data.path_x)
-        print(">> dataset_y is saved in ", self.data.path_y)
-        print(">> dataset x_evaluated is saved in ", self.data.path_x_evaluated)
+        if self.data.production is False:
+            self.data.y.to_csv(self.data.path_y, index=False)
+            self.data.x_evaluated.to_csv(self.data.path_x_evaluated)
+            print(">> dataset_y is saved in ", self.data.path_y)
+            print(">> dataset x_evaluated is saved in ", self.data.path_x_evaluated)
 
 
 class DayFeatureBuild:
     def __init__(self, data):
         self.data = data
         self.anagrafica_features = EvaluationAnagraficaFeatureBuild(self.data, self.data.evaluations_subjects_day)
+        self.operations_features = OperationsAccountsFeatureBuild(self.data, self.data.evaluations_subjects_day)
 
     def build(self):
         self.anagrafica_features.build()
+        self.operations_features.build()
         self.day_features()
 
     def day_features(self):
@@ -134,25 +163,25 @@ class DayFeatureBuild:
 
         self.anagrafica_features.insert_registry_evaluation("COUNTRY_OPERATION",
                                                             self.anagrafica_features.feature_definition.rischio_paese_residenza(
-                                                                self.data.operations_day.COUNTRY))
+                                                                self.data.evaluations_subjects_day.COUNTRY))
 
-        self.anagrafica_features.insert_registry_evaluation("SIGN", self.data.operations_day.SIGN)
+        self.anagrafica_features.insert_registry_evaluation("SIGN", self.data.evaluations_subjects_day.SIGN)
         self.anagrafica_features.insert_registry_evaluation("AMOUNT_OPERATION",
-                                                            self.data.operations_day.AMOUNT.values.tolist())
+                                                            self.data.evaluations_subjects_day.AMOUNT.values.tolist())
         self.anagrafica_features.insert_registry_evaluation("AMOUNT_OPERATION_CASH",
-                                                            self.data.operations_day.AMOUNT_CASH.values.tolist())
+                                                            self.data.evaluations_subjects_day.AMOUNT_CASH.values.tolist())
         self.anagrafica_features.insert_registry_evaluation("COUNTRY_CONTROPARTE_OPERATION",
                                                             self.anagrafica_features.feature_definition.rischio_paese_residenza(
-                                                                self.data.operations_day.COUNTERPART_SUBJECT_COUNTRY))
+                                                                self.data.evaluations_subjects_day.COUNTERPART_SUBJECT_COUNTRY))
         self.anagrafica_features.insert_registry_evaluation("OPERATION_COUNTRY_EXECUTOR",
                                                             self.anagrafica_features.feature_definition.rischio_paese_residenza(
-                                                                self.data.operations_day.RESIDENCE_COUNTRY_E))
+                                                                self.data.evaluations_subjects_day.RESIDENCE_COUNTRY_E))
         self.anagrafica_features.insert_registry_evaluation("RISK_PROFILE_EXECUTOR",
-                                                            self.data.operations_day.RISK_PROFILE_E.values.tolist())
+                                                            self.data.evaluations_subjects_day.RISK_PROFILE_E.values.tolist())
 
     def causal_categorization(self):
         list_causal = []
-        for i, causal in enumerate(self.data.operations_day.CAUSAL.values.tolist()):
+        for i, causal in enumerate(self.data.evaluations_subjects_day.CAUSAL.values.tolist()):
             if i >= self.data.max_elements:
                 break
             flag_found = False
@@ -213,8 +242,10 @@ class EvaluationAnagraficaFeatureBuild:
     def evaluation_feature(self):
         self.insert_registry_evaluation('IMPORTO', self.evaluation_subjects_data.IMPORTO)
         self.insert_registry_evaluation('CODICE_ANOMALIA', self.evaluation_subjects_data.CODICE_ANOMALIA)
-        self.data.y.insert(0, "EVALUATION", self.evaluation_subjects_data.STATO.astype(np.int8).values.tolist()[
-                                            :self.data.max_elements], True)
+        self.insert_registry_evaluation('ID', self.evaluation_subjects_data.ID)
+        if self.data.production is False:
+            self.data.y.insert(0, "EVALUATION", self.evaluation_subjects_data.STATO.astype(np.int8).values.tolist()[
+                                                :self.data.max_elements], True)
 
     def creation_table_query_evaluations(self, query_prop):
         data_anomaly, num_months, ndg = query_prop
@@ -349,8 +380,9 @@ class EvaluationAnagraficaFeatureDefinition:
 
 
 class OperationsAccountsFeatureBuild:
-    def __init__(self, data):
+    def __init__(self, data, evaluation_subjects_data):
         self.data = data
+        self.evaluation_subjects_data = evaluation_subjects_data
         self.operations_accounts_feature_data = OperationsAccountsFeatureDefinition(
             self.data).operations_accounts_feature()
         self.op_features = None
@@ -363,10 +395,10 @@ class OperationsAccountsFeatureBuild:
     def creation_table_query_evaluations(self, query_prop):
         data_anomaly, num_months, ndg = query_prop
         start_range, end_range = range_date(data_anomaly, num_months)
-        query_conditions = (self.data.evaluations_subjects_comportamenti.DATA < str(start_range)) & (
-                self.data.evaluations_subjects_comportamenti.DATA > str(end_range)) & (
-                                       self.data.evaluations_subjects_comportamenti.NDG == ndg)
-        return self.data.evaluations_subjects_comportamenti[query_conditions]
+        query_conditions = (self.evaluation_subjects_data.DATA < str(start_range)) & (
+                self.evaluation_subjects_data.DATA > str(end_range)) & (
+                                   self.evaluation_subjects_data.NDG == ndg)
+        return self.evaluation_subjects_data[query_conditions]
 
     def creation_table_query_operations(self, query_prop, table):
         sign, casual_condition_list = query_prop
@@ -439,12 +471,12 @@ class OperationsAccountsFeatureBuild:
 
     def insert_table_operation_account(self, all_tables_information):
         self.op_features = [[] for _ in range(len(all_tables_information))]
-        for i, evaluation in enumerate(self.data.evaluations_subjects_comportamenti.values.tolist()):
+        for i, evaluation in enumerate(self.evaluation_subjects_data.values.tolist()):
 
             if i >= self.data.max_elements:
                 break
 
-            to_write = "   >> evaluations completed " + str(i+1) + "/" + str(self.data.max_elements) + "\r"
+            to_write = "   >> evaluations completed " + str(i + 1) + "/" + str(self.data.max_elements) + "\r"
             sys.stdout.write(to_write)
 
             single_evaluation_table_6m = self.creation_initial_query_table_ndg(
@@ -484,8 +516,6 @@ class OperationsAccountsFeatureBuild:
     def insert_operation_evaluation(self, j, single_table_info, evaluation, single_evaluation_table_3m,
                                     single_evaluation_table_6m):
         check_build_new_table_and_type = single_table_info[4]
-        if check_build_new_table_and_type > 9:
-            print("")
         date = evaluation[4]
         month = single_table_info[2]
         ndg = evaluation[6]
@@ -667,13 +697,21 @@ class DataFeatures:
     def __init__(self, csv_data, max_elements, prefix, months, range_repetitiveness,
                  variance_threshold_1, variance_threshold_2, variance_threshold_filiale,
                  min_age, max_age, step_age, causali_version,
-                 path_x, path_y, path_x_evaluated):
+                 path_x, path_y, path_x_evaluated, production):
+        self.production = production
         eval_comportamenti, eval_day = csv_data.load_evaluation()
         self.evaluations_subjects_comportamenti = pd.merge(eval_comportamenti, csv_data.load_subjects(), on="NDG",
                                                            how="left")
-        self.evaluations_subjects_day = pd.merge(eval_day, csv_data.load_subjects(), on="NDG", how="left")
+
         self.operations = csv_data.load_operations()
-        self.operations_day = pd.merge(csv_data.load_operations_day(), csv_data.load_subjects(), on="NDG", how="left")
+
+        self.evaluations_subjects_day = pd.merge(eval_day, csv_data.load_subjects(), on="NDG", how="left")
+        operations_day = csv_data.load_operations_day()
+        cols_to_use = operations_day.columns.difference(self.evaluations_subjects_day.columns).tolist()
+        cols_to_use.append('CODE_OPERATION')
+        self.evaluations_subjects_day = pd.merge(self.evaluations_subjects_day, operations_day[cols_to_use],
+                                                 on="CODE_OPERATION", how="left")
+
         self.accounts = csv_data.load_accounts()
         self.list_values = csv_data.load_list_values()
         self.list_causal_analytical = self.load_list_causal_analytical(csv_data.load_causal_analytical(),

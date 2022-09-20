@@ -17,7 +17,9 @@ run()
 | Parametro             | Default                                         | Commento                                                            |
 |-----------------------|-------------------------------------------------|---------------------------------------------------------------------|
 | evaluation_csv        | target_not_processed.csv                        |                                                                     |
-| subject_csv           | all_operations_db.csv                           |                                                                     |
+| operations_csv        | all_operations_db.csv                           |                                                                     |
+| subject_csv           | all_subjects.csv                                |                                                                     |
+| operations_day_csv    | all_operations_day_db.csv                       | Informazioni addizionali per il discovery day                       |
 | accounts_csv          | all_accounts_db.csv                             |                                                                     |
 | list_values_csv       | list_values.csv                                 |                                                                     |
 | causal_analytical_csv | causale_analitica.csv                           |                                                                     |
@@ -46,6 +48,35 @@ run()
 | step_age                   | 10                            |                                                                                                                 |
 | path_x                     | /data/dataset_x.csv           |                                                                                                                 |
 | path_y                     | /data/dataset_y.csv           |                                                                                                                 |
-| path_x_evaluated           | /data/dataset_x_evaluated.csv | Percorso per salvare i le features delle anomalie con target = 1                                                |
+| path_x_evaluated           | /data/dataset_x_evaluated.csv | Percorso per salvare le features delle anomalie con target = 1                                                  |
+| causal version             | raggruppamento a 14 (v14)     | Raggruppamento della causali                                                                                    |
+| production                 | False                         | True quando dovrà essere utilizzato in produzione                                                               |
 
 <!-- TABLE_GENERATE_END -->
+
+## 3. Categorizzazione, normalizzazione e gestione degli elementi nulli
+```
+pre_processing / categorization.py
+```
+Metodo per eseguire e salvare le features processate
+```
+Categorization(x_dataset).run()
+```
+Altrimenti utilizzando il valore di default salvato in /data/dataset
+```
+Categorization().run()
+```
+Il risultato prodotto viene salvato in /data/dataset_split in cui il dataset viene division in train, validation e test
+
+## 4. Training del modello definito in **_`train/models / models_definition.py`_**
+```
+train / train.py
+```
+Metodo per addestrare il modello che verrà salvato in /models (e.g. voting_model.sav)
+```
+run()
+```
+## 5. Analisi della distribuzione degli errori
+```
+test / error_perfomance_estimation.py
+```

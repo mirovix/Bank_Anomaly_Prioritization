@@ -14,13 +14,13 @@ from build_features import range_date
 
 
 class LoadData:
-    def __init__(self, evaluation_csv=r'../data/target_not_processed.csv',
-                 subject_csv=r'../data/all_subjects_db.csv',
-                 operations_csv=r'../data/all_operations_db.csv',
-                 accounts_csv=r'../data/all_accounts_db.csv',
-                 list_values_csv=r'../data/list_values.csv',
-                 causal_analytical_csv=r'../data/causale_analitica_V2.csv',
-                 operations_day_csv=r'../data/all_operations_day_db.csv',
+    def __init__(self, evaluation_csv=r'../data/row_data/target_not_processed.csv',
+                 subject_csv=r'../data/row_data/all_subjects_db.csv',
+                 operations_csv=r'../data/row_data/all_operations_db.csv',
+                 accounts_csv=r'../data/row_data/all_accounts_db.csv',
+                 list_values_csv=r'../data/row_data/list_values.csv',
+                 causal_analytical_csv=r'../data/row_data/causale_analitica_V2.csv',
+                 operations_day_csv=r'../data/row_data/all_operations_day_db.csv',
                  start_date_evaluation='2020-07-01 00:00:00.001',
                  max_months_considered=19,
                  software_list_to_drop=None,
@@ -43,24 +43,26 @@ class LoadData:
         self.subject_csv = subject_csv
         self.evaluation_csv = evaluation_csv
 
+    def load_evaluation_not_processed(self, index_col=False):
+        cols_names = ['ID', 'CODICE_ANOMALIA', 'SOFTWARE', 'IMPORTO', 'DATA', 'STATO',
+                      'NDG', 'CODE_OPERATION', 'DESCRIZIONE']
+        if index_col is False:
+            target_info = pd.read_csv(self.evaluation_csv, low_memory=False, header=0, names=cols_names)
+        else:
+            target_info = pd.read_csv(self.evaluation_csv, low_memory=False, header=0, names=cols_names, index_col=['ID'])
+        return target_info
+
     def load_evaluation(self):
+        target_info = self.load_evaluation_not_processed()
 
-        target_info = pd.read_csv(self.evaluation_csv, header=0, sep=';')
-
-        target_info.IMPORTO = target_info.IMPORTO.replace(to_replace='Vari', value=np.nan)
+        target_info.IMPORTO = target_info.IMPORTO.replace(to_replace='Vari', value=-1)
         target_info.IMPORTO = target_info.IMPORTO.astype(np.float64).map('{:.2f}'.format)
-
-        # target_info.NDG = target_info.NDG.replace(to_replace=np.nan, value='-1')
-        # target_info.drop(target_info[target_info.NDG == int(-1)].index, inplace=True)
-
-        target_info.dropna(inplace=True)
-        target_info.NDG = target_info.NDG.astype(np.int64)
+        target_info.CODE_OPERATION = target_info.CODE_OPERATION.replace(to_replace='NULL', value=np.nan)
 
         drop_stato = False
         for state_to_drop in self.state_list_to_drop:
             drop_stato |= (target_info.STATO == state_to_drop)
         target_info.drop(target_info[drop_stato].index, inplace=True)
-        target_info.STATO = target_info.STATO.replace({'NOT_TO_ALERT': 0, 'TO_ALERT': 1})
 
         drop_software = False
         for software_to_drop in self.software_list_to_drop:
@@ -73,11 +75,22 @@ class LoadData:
         target_info = target_info.sort_values(by="DATA")
 
         target_info_discovery_day = target_info.copy()
-        target_info_discovery_day.drop(target_info_discovery_day[target_info_discovery_day.SOFTWARE == 'COMPORTAMENT'].index, inplace=True)
-        target_info_discovery_day.drop(target_info_discovery_day[target_info_discovery_day.STATO == 'VALUATING_AAU'].index, inplace=True)
+        target_info_discovery_day.drop(
+            target_info_discovery_day[target_info_discovery_day.SOFTWARE == 'COMPORTAMENT'].index, inplace=True)
+        target_info_discovery_day.drop(
+            target_info_discovery_day[target_info_discovery_day.STATO == 'VALUATING_AAU'].index, inplace=True)
+        target_info_discovery_day.dropna(inplace=True)
+        target_info_discovery_day.NDG = target_info_discovery_day.NDG.astype(np.int64)
+        target_info_discovery_day.STATO.replace({'NOT_TO_ALERT': 0, 'TO_ALERT': 1}, inplace=True)
 
         target_info_discovery_comportamenti = target_info.copy()
-        target_info_discovery_comportamenti.drop(target_info_discovery_comportamenti[target_info_discovery_comportamenti.SOFTWARE == 'DISCOVERY'].index, inplace=True)
+        target_info_discovery_comportamenti.drop(
+            target_info_discovery_comportamenti[target_info_discovery_comportamenti.SOFTWARE == 'DISCOVERY'].index,
+            inplace=True)
+        target_info_discovery_comportamenti.drop('CODE_OPERATION', inplace=True, axis=1)
+        target_info_discovery_comportamenti.dropna(inplace=True)
+        target_info_discovery_comportamenti.NDG = target_info_discovery_comportamenti.NDG.astype(np.int64)
+        target_info_discovery_comportamenti.STATO.replace({'NOT_TO_ALERT': 0, 'TO_ALERT': 1}, inplace=True)
 
         return target_info_discovery_comportamenti, target_info_discovery_day
 
@@ -111,7 +124,7 @@ class LoadData:
         for i in range(1, len(cols_names)):
             dtypes[cols_names[i]] = str
 
-        operations_info = pd.read_csv(self.operations_csv, header=0, sep=';', names=cols_names, dtype=dtypes)
+        operations_info = pd.read_csv(self.operations_csv, header=0, names=cols_names, dtype=dtypes, sep=';')
 
         operations_info.AMOUNT = operations_info.AMOUNT.astype(np.float64).map('{:.2f}'.format)
         # start_range, end_range = range_date(self.start_date_evaluation, self.max_months_considered, months_to_remove=0)
@@ -138,7 +151,11 @@ class LoadData:
         return pd.read_csv(self.causal_analytical_csv, dtype=str, header=0, sep=';')
 
     def load_operations_day(self):
-        operations_day = pd.read_csv(self.operations_day_csv, dtype=str, header=0, sep=';')
+        cols_names = ['NDG', 'CODE_OPERATION', 'DATA', 'CAUSAL', 'SIGN', 'COUNTRY',
+                      'AMOUNT', 'AMOUNT_CASH', 'COUNTERPART_SUBJECT_COUNTRY',
+                      'RESIDENCE_COUNTRY_T', 'RESIDENCE_COUNTRY_E', 'RISK_PROFILE_E']
+
+        operations_day = pd.read_csv(self.operations_day_csv, dtype=str, header=0, names=cols_names, sep=';')
         operations_day.NDG = operations_day.NDG.astype(np.int64)
         operations_day.RISK_PROFILE_E = operations_day.RISK_PROFILE_E.astype(np.int8)
         operations_day.AMOUNT = operations_day.AMOUNT.astype(np.float64)
