@@ -12,58 +12,57 @@ import pickle
 import sys
 import pandas as pd
 from flask import jsonify
+from datetime import datetime
+from configs import production_config as pc, build_features_config as bfc
+from threshold_finder import ThresholdFinder
 
 
-def check_input_features(to_predict):
-    return to_predict
-
-
-def load_model(filename_model='../train/models/voting_model.sav', thresholds=None):
-    if thresholds is None:
-        thresholds = [0, 0.20, 0.60]
+def load_model():
+    threshold_finder = ThresholdFinder()
+    threshold_finder.import_threshold_from_file()
+    threshold_comp = threshold_finder.to_list_comportamenti(flag_f1=False)
+    threshold_day = threshold_finder.to_list_day(flag_f1=False)
     try:
-        model = pickle.load(open(filename_model, 'rb'))
+        model = pickle.load(open(pc.machine_learning_model_path, 'rb'))
     except FileNotFoundError:
-        print(f"File {filename_model} not found.  Aborting")
+        print(f"File {pc.machine_learning_model_path} not found.  Aborting")
         sys.exit(1)
-    except Exception as err:
-        print(f"Unexpected error predicting anomalies is" + repr(err))
-        sys.exit(1)
-    return model, thresholds
+    return model, threshold_comp, threshold_day
 
 
-def predict_model(to_predict, model, thresholds, test=False):
-    input_model, result = check_input_features(to_predict), []
-    for i in range(input_model.shape[0]):
-        index = input_model.index.values.tolist()[i]
-        try:
-            single_prediction = model.predict_proba(input_model.iloc[i]).tolist()
-        except:
-            result.append((index, -1, -1))
-            continue
+def predict_model(input_model, model, threshold_comp, threshold_day, test=False):
+    result, prediction = [], []
+    try:
+        prediction = model.predict_proba(input_model).tolist()
+    except Exception:
+        exit(1)
+    index = input_model.index.values.tolist()
+    for i, single_prediction in enumerate(prediction):
         current_e_index = single_prediction.index(max(single_prediction))
-        pos_label = 1 if current_e_index < 2 else 3
-        prediction = float("{:.3f}".format(single_prediction[pos_label]))
-        if thresholds[1] < single_prediction[pos_label] <= thresholds[2]:
-            result.append((index, prediction, 2))
-        elif single_prediction[pos_label] <= thresholds[0]:
-            result.append((index, prediction, 0))
-        elif single_prediction[pos_label] > thresholds[2]:
-            result.append((index, prediction, 3))
-        elif thresholds[0] < single_prediction[pos_label] <= thresholds[1]:
-            result.append((index, prediction, 1))
+        if current_e_index < 2:
+            pos_label = bfc.positive_target_comp
+            thresholds = threshold_comp
+        else:
+            pos_label = bfc.positive_target_day
+            thresholds = threshold_day
+        prediction_value = float("{:.3f}".format(single_prediction[pos_label]))
+        for j in range(len(thresholds)-1):
+            if thresholds[j] < single_prediction[pos_label] <= thresholds[j+1]:
+                result.append((index[i], prediction_value, j))
 
     if test is True:
         return result
     return jsonify(result)
 
 
-def test(x=None, path="../data/dataset_test/test.csv"):
+def test(x=None):
+    start = datetime.now()
     if x is None:
-        x = pd.read_csv(path, low_memory=False, index_col=['ID'])
-    model, thresholds = load_model()
-    prediction = predict_model(x, model, thresholds, True)
-    print("Prediction: ", prediction)
+        x = pd.read_csv(pc.path_testing_file, low_memory=False, index_col=[pc.index_name])
+    model, threshold_comp, threshold_day = load_model()
+    prediction = predict_model(x, model, threshold_comp, threshold_day, True)
+    print(">> prediction: ", prediction)
+    print("\n>> total time ", datetime.now() - start, "\n")
 
 
 if __name__ == "__main__":

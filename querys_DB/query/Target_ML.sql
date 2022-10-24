@@ -1,0 +1,13 @@
+/****** Script for SelectTopNRows command from SSMS  ******/
+SELECT EP.[ID]
+	  ,EP.[CODE]
+	  ,EP.[SYSTEM_ID]
+	  ,EP.[AMOUNT]
+      ,EP.[FIRSTSAVE]
+	  ,EP.[STATUS_ID]     
+	  ,ASS.[NDG]
+	  ,EPO.[A03]
+      ,EP.[DESCRIPTION]
+  FROM [EVALUATION_PROD].[dbo].[ANOMALY_SEARCH_OPERATION] as EPO,
+  [EVALUATION_PROD].[dbo].[ANOMALY] as EP, [EVALUATION_PROD].[dbo].[ANOMALY_SEARCH_SUBJECT] as ASS
+  WHERE EPO.[ANOMALY_ID]=EP.[ID] and ASS.[ANOMALY_ID] = EP.[ID]

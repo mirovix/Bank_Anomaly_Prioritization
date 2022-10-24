@@ -1,0 +1,12 @@
+SELECT *
+FROM Subject_ML
+WHERE NDG in;
+SELECT *
+FROM Account_ML
+WHERE NDG in;
+SELECT *
+FROM Operations_ML
+WHERE NDG in;
+SELECT *
+FROM Operations_day_ML
+WHERE NDG in;

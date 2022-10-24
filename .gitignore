@@ -161,3 +161,11 @@ test/errors.csv
 *.npy
 *.npy
 *.joblib
+input/null_elements.json
+.scannerwork/.sonar_lock
+*.txt
+configs/config.py
+/train/model_data/*
+/train/final_model/*
+/train/plots/*
+configs/production_db_config.py
