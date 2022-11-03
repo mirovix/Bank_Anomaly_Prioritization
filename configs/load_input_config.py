@@ -1,3 +1,11 @@
+"""
+@Author: Miro
+@Date: 26/10/2022
+@Version: 1.0
+@Objective: configuration file for loading input files
+@TODO:
+"""
+
 import numpy as np
 import pandas as pd
 
@@ -66,8 +74,7 @@ dtypes_accounts_csv = {cols_names_accounts_csv[0]: str, cols_names_accounts_csv[
 
 cols_names_list_values_csv = ['RISCHIO_PAESE_ALTISSIMO', 'RISCHIO_PAESE_ALTO', 'PAESI_RESIDENZA', 'ATECO_0', 'ATECO_1',
                               'ATECO_2', 'ATECO_3', 'ATECO_SAE_NONE', 'SAE_0', 'SAE_1', 'SAE_2', 'SAE_3', 'SAE_4',
-                              'PRV_0',
-                              'PRV_1', 'PRV_2', 'PRV_3', 'PRV_4']
+                              'PRV_0', 'PRV_1', 'PRV_2', 'PRV_3', 'PRV_4']
 default_list_values_csv = ['', '#N/A', '#N/A N/A', '#NA', '-1.#IND',
                            '-1.#QNAN', '-NaN', '-nan', '1.#IND',
                            '1.#QNAN', 'N/A', 'NULL', 'NaN',

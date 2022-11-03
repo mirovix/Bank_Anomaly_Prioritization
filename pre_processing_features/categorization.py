@@ -126,5 +126,5 @@ def load_dataset(flag_y=True, flag_x_eval=True):
 
 
 def split_data(data, target, size_train):
-    x_train, x_test, y_train, y_test = train_test_split(data, target, test_size=(1 - size_train), shuffle=True)
+    x_train, x_test, y_train, y_test = train_test_split(data, target, test_size=(1 - size_train), shuffle=True, random_state=1)
     return x_train, x_test, y_train, y_test

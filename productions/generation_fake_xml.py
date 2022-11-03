@@ -15,13 +15,12 @@ from configs import production_config as pc
 from load_data import LoadData
 
 
-def load_on_db(engine, xml, id_anomaly, sw):
-    query = "INSERT INTO " + pc.rx_input_production_name + " (SYSTEM, ID, CONTENUTO) VALUES ("
-    new_query = query + "'" + str(sw).replace(' ', '') + "'," + str(id_anomaly) + ",'" + xml + "');"
+def load_on_db(engine, df_to_insert):
     try:
-        engine.execute(new_query)
-    except Exception:
-        return
+        df_to_insert.to_sql(pc.rx_input_production_name, con=engine, if_exists='replace', index=False)
+    except Exception as ex:
+        print(">> exception loading fake xml: ", ex)
+        exit(1)
 
 
 def generate_xml(data):
@@ -73,10 +72,14 @@ def generate_xml(data):
 def generation_new_data(engine, max_elements=None):
     target_comp, target_day = LoadData().load_evaluation()
     target = pd.concat([target_comp, target_day])
+    target.drop_duplicates(subset=[pc.index_name], keep='last', inplace=True)
     target.NDG = target.NDG.astype(str)
+
     if max_elements is None: max_elements = target.shape[0]
+    list_to_insert = []
     for i, row in target.loc[np.random.choice(target.index, size=max_elements)].iterrows():
         row.NDG = (pc.len_ndg - len(row.NDG)) * '0' + row.NDG
-        load_on_db(engine, et.tostring(generate_xml(row).getroot(), encoding="unicode"),
-                   row.ID, row.SOFTWARE)
+        list_to_insert.append([row.SOFTWARE, None, row.ID, None, et.tostring(generate_xml(row).getroot(), encoding="unicode"), None])
+
+    load_on_db(engine, pd.DataFrame(list_to_insert, columns=pc.input_rows_name))
     print(">> generated %d fake anomalies on RX database\n" % max_elements)

@@ -11,7 +11,6 @@
 import pickle
 import sys
 import pandas as pd
-from flask import jsonify
 from datetime import datetime
 from configs import production_config as pc, build_features_config as bfc
 from threshold_finder import ThresholdFinder
@@ -30,7 +29,7 @@ def load_model():
     return model, threshold_comp, threshold_day
 
 
-def predict_model(input_model, model, threshold_comp, threshold_day, test=False):
+def predict_model(input_model, model, threshold_comp, threshold_day):
     result, prediction = [], []
     try:
         prediction = model.predict_proba(input_model).tolist()
@@ -49,18 +48,16 @@ def predict_model(input_model, model, threshold_comp, threshold_day, test=False)
         for j in range(len(thresholds)-1):
             if thresholds[j] < single_prediction[pos_label] <= thresholds[j+1]:
                 result.append((index[i], prediction_value, j))
-
-    if test is True:
-        return result
-    return jsonify(result)
+                break
+    return result
 
 
-def test(x=None):
+def test(x=None, num_elements=100):
     start = datetime.now()
     if x is None:
-        x = pd.read_csv(pc.path_testing_file, low_memory=False, index_col=[pc.index_name])
+        x = pd.read_csv(bfc.path_x_test, low_memory=False, index_col=[pc.index_name]).head(num_elements)
     model, threshold_comp, threshold_day = load_model()
-    prediction = predict_model(x, model, threshold_comp, threshold_day, True)
+    prediction = predict_model(x, model, threshold_comp, threshold_day)
     print(">> prediction: ", prediction)
     print("\n>> total time ", datetime.now() - start, "\n")
 

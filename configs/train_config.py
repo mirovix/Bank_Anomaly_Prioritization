@@ -1,5 +1,13 @@
+"""
+@Author: Miro
+@Date: 26/10/2022
+@Version: 1.0
+@Objective: configuration file for training
+@TODO:
+"""
+
 import numpy as np
-from imblearn.combine import SMOTEENN
+from imblearn.combine import SMOTETomek
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
@@ -15,13 +23,15 @@ verbose = 1
 apply_smote = False
 apply_random_search = False
 show_plots = True
-save_plots = False
+save_plots = True
 x_size_plot = 18
 y_size_plot = 10
 
+fixed_threshold_mid = [0.20, 0.60]
+
 # smote oversampling (SMOTETomek, ADASYN, SMOTEENN)
 
-smote_model = SMOTEENN(n_jobs=n_jobs)
+smote_model = SMOTETomek(n_jobs=n_jobs)
 
 # classifiers
 

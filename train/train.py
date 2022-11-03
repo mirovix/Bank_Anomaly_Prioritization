@@ -66,7 +66,7 @@ def train():
     y_pred_perc = model.predict_proba(x_val)
     y_pred_perc_test = model.predict_proba(x_test)
 
-    thresholds = ThresholdFinder(y_pred_perc, y_val_arr, safe_removing=True)
+    thresholds = ThresholdFinder(y_pred_perc, y_val_arr, mid_threshold_fix=True)
     thresholds.define_thresholds()
 
     plots_performance(y_pred_perc_test, y_test_arr, thresholds)

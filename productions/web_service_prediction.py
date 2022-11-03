@@ -12,7 +12,7 @@ import base64
 import pickle
 import flask
 from flask_wtf.csrf import CSRFProtect
-from flask import request, Response
+from flask import request, Response, jsonify
 from configs import production_db_config as pdbc
 from predict_anomaly import predict_model, load_model
 
@@ -37,7 +37,7 @@ def prediction():
         return error(f"os error occurred trying to open {request.files['data']}", 400)
     except Exception as err:
         return error((f"unexpected error opening {request.data} is", repr(err)), 400)
-    return predict_model(x, model, threshold_comp, threshold_day)
+    return jsonify(predict_model(x, model, threshold_comp, threshold_day))
 
 
 if __name__ == "__main__":

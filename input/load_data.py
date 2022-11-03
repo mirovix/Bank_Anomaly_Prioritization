@@ -55,7 +55,7 @@ class LoadData:
 
     @staticmethod
     def process_target_day(target_dd, production_flag):
-        target_dd.drop(target_dd[target_dd.SOFTWARE == 'COMPORTAMENT'].index, inplace=True)
+        target_dd.drop(target_dd[target_dd.SOFTWARE.replace(' ', '') == 'COMPORTAMENT'].index, inplace=True)
         if target_dd.shape[0] == 0:
             return target_dd
 
@@ -71,7 +71,7 @@ class LoadData:
 
     @staticmethod
     def process_target_comportamenti(target_dc):
-        target_dc.drop(target_dc[target_dc.SOFTWARE == 'DISCOVERY'].index, inplace=True)
+        target_dc.drop(target_dc[target_dc.SOFTWARE.replace(' ', '') == 'DISCOVERY'].index, inplace=True)
         if target_dc.shape[0] == 0:
             return target_dc
 
@@ -122,8 +122,15 @@ class LoadData:
                                           names=lic.cols_names_operations_csv,
                                           dtype=lic.dtypes_operations_csv, sep=lic.sep)
         else:
-            sql, engine = data
-            operations_info = pd.read_sql(sql, engine).astype(lic.dtypes_operations_csv)
+            sql_comp, engine_comp, sql_day, engine_day = data
+            operations_info_comp, operations_info_day = None, None
+            if sql_comp is not None:
+                operations_info_comp = pd.read_sql(sql_comp, engine_comp).astype(lic.dtypes_operations_csv)
+            if sql_day is not None:
+                operations_info_day = pd.read_sql(sql_day, engine_day).astype(lic.dtypes_operations_csv)
+            operations_info = pd.concat([operations_info_comp, operations_info_day], ignore_index=True) \
+                              .sort_values("CONSOLIDATION_DATE", ascending=True) \
+                              .drop_duplicates(subset=["CODE_OPERATION"], keep="last")
             operations_info.replace('NaT', np.nan, inplace=True)
             operations_info.replace('None', np.nan, inplace=True)
 

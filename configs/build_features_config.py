@@ -1,3 +1,13 @@
+#!/usr/bin/env python3
+
+"""
+@Author: Miro
+@Date: 26/10/2022
+@Version: 1.0
+@Objective: configuration file for build features
+@TODO:
+"""
+
 # basic information for building the features
 
 positive_target_comp, positive_target_day = 1, 3

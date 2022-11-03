@@ -37,14 +37,14 @@ def concatenate_xml_predictions(input_xml_string, percentuale_value, fascia_valu
     attributes = et.Element("attributes")
 
     simple = et.SubElement(attributes, "simple")
-    defaultDescription = et.SubElement(simple, "defaultDescription")
-    defaultDescription.text = "Percentuale indice predittivo"
+    default_description = et.SubElement(simple, "defaultDescription")
+    default_description.text = "Percentuale indice predittivo"
     value = et.SubElement(simple, "value")
     value.text = str(percentuale_value)
 
     simple = et.SubElement(attributes, "simple")
-    defaultDescription = et.SubElement(simple, "defaultDescription")
-    defaultDescription.text = "Fascia indice predittivo"
+    default_description = et.SubElement(simple, "defaultDescription")
+    default_description.text = "Fascia indice predittivo"
     value = et.SubElement(simple, "value")
     value.text = tc.soglie[fascia_value]
 
@@ -58,7 +58,7 @@ def from_xml_to_target(input_xml_string, index, comportamenti=False, day=False):
 
     dict_xml.update({pc.xml_names['id']: index})
     dict_xml.update({pc.xml_names['cod_anomalia']: str(root.find('code').text)})
-    dict_xml.update({pc.xml_names['sw']: str(root.find('system').text)})
+    dict_xml.update({pc.xml_names['sw']: str(root.find('system').text).replace(' ', '')})
 
     fill_data_len = pc.iso_date_len - len(root.find('createdAt').text)
     data = {pc.xml_names['data_anomalia']: str((root.find('createdAt').text[:-4]) + '0' * fill_data_len)}
@@ -87,27 +87,32 @@ def from_xml_to_target(input_xml_string, index, comportamenti=False, day=False):
 
 
 def build_target(sql, engine, max_elements=None):
-    sql_commands = sql.split(';')
-    xml_template = pd.read_sql(sql_commands[0] + pc.name_table_input, engine,
-                               index_col=[pc.index_name]).astype(str)
-    if xml_template.shape[0] == 0: return None, None
+    sql_commands, xml_template = sql.split(';'), None
 
-    engine.execute(sql_commands[1] + pc.name_table_input)
-    if pc.testing_flag is True: engine.execute(sql_commands[2] + pc.rx_output_production_name)
+    try:
+        xml_template = pd.read_sql(sql_commands[0] + pc.name_table_input, engine,
+                                   index_col=[pc.index_name]).astype(str)
+        if xml_template.shape[0] == 0: return None, None, None
+
+        engine.execute(sql_commands[1] + pc.name_table_input)
+        if pc.testing_flag is True: engine.execute(sql_commands[2] + pc.rx_output_production_name)
+
+    except Exception as ex:
+        print(">> input data cannot be obtained due to the following error: ", ex)
+        exit(1)
 
     xml_template.replace('NaT', np.nan, inplace=True)
     xml_template.replace('None', np.nan, inplace=True)
 
-    dict_xml, i, single_dict_xml = [], 0, None
+    dict_xml_day, dict_xml_comp, i = [], [], 0
     if max_elements is None: max_elements = xml_template.shape[0]
     for index, row in xml_template.iterrows():
         if i > max_elements: break
         i += 1
         if row.SYSTEM.replace(' ', '') == pc.system_comp_name:
-            single_dict_xml = from_xml_to_target(row.CONTENUTO, index, comportamenti=True)
+            dict_xml_comp.append(from_xml_to_target(row.CONTENUTO, index, comportamenti=True))
         elif row.SYSTEM.replace(' ', '') == pc.system_day_name:
-            single_dict_xml = from_xml_to_target(row.CONTENUTO, index, day=True)
+            dict_xml_day.append(from_xml_to_target(row.CONTENUTO, index, day=True))
         else:
             continue
-        dict_xml.append(single_dict_xml)
-    return pd.DataFrame(dict_xml), xml_template.head(max_elements)
+    return pd.DataFrame(dict_xml_comp), pd.DataFrame(dict_xml_day), xml_template.head(max_elements)

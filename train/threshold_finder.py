@@ -11,7 +11,7 @@
 import json
 import numpy as np
 from sklearn.metrics import f1_score
-from configs import production_config as pc, build_features_config as bfc
+from configs import production_config as pc, build_features_config as bfc, train_config as tc
 from util import estimation_single_anomaly as esa
 
 
@@ -43,7 +43,7 @@ def from_threshold_to_pred(y_pred, threshold_comp, threshold_day):
 
 class ThresholdFinder:
     def __init__(self, x_val=None, y_val=None, step_f1=0.01, step_rmv=0.00001, safe_removing=False,
-                 path=pc.machine_learning_thresholds_data_path):
+                 mid_threshold_fix=False, path=pc.machine_learning_thresholds_data_path):
         self.x_val = x_val
         self.y_val = y_val
 
@@ -51,6 +51,7 @@ class ThresholdFinder:
         self.step_rmv = step_rmv
 
         self.safe_removing = safe_removing
+        self.mid_threshold_fix = mid_threshold_fix
 
         self.path_to_save = path
         self.name_json_comportamenti = 'threshold_comp.json'
@@ -90,6 +91,11 @@ class ThresholdFinder:
             if to_remove_info['err_day'] + to_remove_info['err_comp'] > 1: break
 
     def thresholds_range(self):
+        if self.mid_threshold_fix is True:
+            self.lower_day, self.upper_day = tc.fixed_threshold_mid
+            self.lower_comp, self.upper_comp = tc.fixed_threshold_mid
+            return
+
         _, wrong_pred, _ = esa(self.y_val, self.x_val, self.rmv_comp,
                                self.rmv_day, self.f1_comp, self.f1_comp)
 

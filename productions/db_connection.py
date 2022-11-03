@@ -13,9 +13,15 @@ from configs import production_db_config as pdbc
 from sqlalchemy import create_engine
 
 
-def db_connection_dwa(sql_server_flag=False, my_sql_flag=False):
-    info_db = pdbc.dwa_server, pdbc.dwa_database, pdbc.dwa_username, \
-              pdbc.dwa_password, pdbc.sql_server_driver, pdbc.dwa_port
+def db_connection_dwa_day(sql_server_flag=False, my_sql_flag=False):
+    info_db = pdbc.dwa_day_server, pdbc.dwa_day_database, pdbc.dwa_day_username, \
+              pdbc.dwa_day_password, pdbc.sql_server_driver, pdbc.dwa_day_port
+    return db_connection(info_db, sql_server_flag, my_sql_flag)
+
+
+def db_connection_dwa_comp(sql_server_flag=False, my_sql_flag=False):
+    info_db = pdbc.dwa_comp_server, pdbc.dwa_comp_database, pdbc.dwa_comp_username, \
+              pdbc.dwa_comp_password, pdbc.sql_server_driver, pdbc.dwa_comp_port
     return db_connection(info_db, sql_server_flag, my_sql_flag)
 
 
@@ -42,9 +48,10 @@ def db_connection(info_db, sql_server_flag, my_sql_flag):
         connection_url = pdbc.mysql_driver_name + "://{0}:{1}@{2}:{3}/{4}".format(user, pw, server, port, database)
         connection_string = connection_url
     try:
-        engine = create_engine(connection_url)
-        print(">> connected to the db >> " + connection_string + "\n")
+        engine = create_engine(connection_url, connect_args={"timeout": pdbc.web_service_time_out})
+        print(">> connection db >> " + connection_string + "\n")
     except Exception as ex:
         print(">> connection could not be made due to the following error: ", ex)
+        exit(1)
 
     return engine
