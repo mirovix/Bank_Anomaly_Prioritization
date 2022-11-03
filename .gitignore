@@ -156,17 +156,8 @@ ipython_config.py
 data/*
 documentations_ML/*
 pre_processing_features/Datawig/imputer_models/*
-train/models/*
-test/errors.csv
-*.npy
-*.joblib
 input/null_elements.json
 .scannerwork/.sonar_lock
 *.txt
-configs/config.py
-/train/model_data/*
-/train/final_model/*
-/train/plots/*
-configs/production_db_config.py
 .run/production.run.xml
 .scannerwork/*
