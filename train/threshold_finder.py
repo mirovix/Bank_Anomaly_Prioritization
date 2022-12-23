@@ -12,7 +12,7 @@ import json
 import numpy as np
 from sklearn.metrics import f1_score
 from configs import production_config as pc, build_features_config as bfc, train_config as tc
-from util import estimation_single_anomaly as esa
+from train.util import estimation_single_anomaly as esa
 
 
 def my_custom_loss_func(y_true, y_pred, step=0.01):
@@ -42,7 +42,7 @@ def from_threshold_to_pred(y_pred, threshold_comp, threshold_day):
 
 
 class ThresholdFinder:
-    def __init__(self, x_val=None, y_val=None, step_f1=0.01, step_rmv=0.00001, safe_removing=False,
+    def __init__(self, x_val=None, y_val=None, step_f1=0.01, step_rmv=0.0001, safe_removing=False,
                  mid_threshold_fix=False, path=pc.machine_learning_thresholds_data_path):
         self.x_val = x_val
         self.y_val = y_val
@@ -82,7 +82,7 @@ class ThresholdFinder:
                 self.f1_day = threshold
 
     def validation_for_removing_threshold(self):
-        self.rmv_day, self.rmv_comp = 0.0, 0.0
+        self.rmv_day, self.rmv_comp = 0.01, 0.01
         if self.safe_removing is True: return
         for threshold in np.arange(0, 1, self.step_rmv):
             to_remove_info, _, _ = esa(self.y_val, self.x_val, threshold, threshold, validation=True)

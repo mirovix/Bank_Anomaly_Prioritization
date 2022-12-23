@@ -8,6 +8,8 @@
 @TODO:
 """
 
+from configs import production_config as pc
+
 # basic information for building the features
 
 positive_target_comp, positive_target_day = 1, 3
@@ -15,17 +17,22 @@ negative_target_comp, negative_target_day = 0, 2
 name_comp, name_day = 'comportamenti', 'day'
 
 size_train = 0.8
-size_test = 0.35
+size_cross_val = 0.35
 
-path_x = "C:/workspace/AnomalyPrioritization/data/dataset/dataset_x.csv"
-path_y = "C:/workspace/AnomalyPrioritization/data/dataset/dataset_y.csv"
-path_x_evaluated = "C:/workspace/AnomalyPrioritization/data/dataset/dataset_x_evaluated.csv"
-path_x_train = "C:/workspace/AnomalyPrioritization/data/dataset_split/x_train.csv"
-path_y_train = "C:/workspace/AnomalyPrioritization/data/dataset_split/y_train.csv"
-path_x_val = "C:/workspace/AnomalyPrioritization/data/dataset_split/x_val.csv"
-path_y_val = "C:/workspace/AnomalyPrioritization/data/dataset_split/y_val.csv"
-path_x_test = "C:/workspace/AnomalyPrioritization/data/dataset_split/x_test.csv"
-path_y_test = "C:/workspace/AnomalyPrioritization/data/dataset_split/y_test.csv"
+start_date_ds = '2017-01-01 00:00:00.000'
+
+path_x = pc.base_path + "/data/dataset/dataset_x.csv"
+path_y = pc.base_path + "/data/dataset/dataset_y.csv"
+path_x_evaluated = pc.base_path + "/data/dataset/dataset_x_evaluated.csv"
+
+path_target_processed = pc.base_path + "/pre_processing_target/output/target.csv"
+
+path_x_train = pc.base_path + "/data/dataset_split/x_train.csv"
+path_y_train = pc.base_path + "/data/dataset_split/y_train.csv"
+path_x_val = pc.base_path + "/data/dataset_split/x_val.csv"
+path_y_val = pc.base_path + "/data/dataset_split/y_val.csv"
+path_x_test = pc.base_path + "/data/dataset_split/x_test.csv"
+path_y_test = pc.base_path + "/data/dataset_split/y_test.csv"
 
 range_repetitiveness = 0.05
 variance_threshold_1 = 0.80

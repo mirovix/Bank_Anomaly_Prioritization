@@ -154,10 +154,26 @@ ipython_config.py
 
 .idea/*
 data/*
-documentations_ML/*
+documentations/*
 pre_processing_features/Datawig/imputer_models/*
+train/models/*
+test/errors.csv
+*.npy
+*.joblib
 input/null_elements.json
 .scannerwork/.sonar_lock
 *.txt
+configs/config.py
+/model_data/*
+/final_model/*
+/plots/*
+/driver/
 .run/production.run.xml
 .scannerwork/*
+/csv_extractor_dir/output/*
+/csv_extractor_dir/config.py
+pre_processing_target/iter_processed/save_iter.json
+pre_processing_target/output/target.csv
+.coveragerc
+extend_modules.py
+extend_modules.py

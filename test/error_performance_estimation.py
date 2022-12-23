@@ -3,7 +3,7 @@
 """
 @Author: Miro
 @Date: 07/09/2022
-@Version: 1.0
+@Version: 1.1
 @Objective: analisi degli errori sul test
 @TODO:
 """
@@ -11,6 +11,7 @@
 import pickle
 import numpy as np
 import pandas as pd
+from sys import exit
 from load_dataset_split import load_dataset_split as load_data
 from threshold_finder import ThresholdFinder
 from configs import build_features_config as bfc, train_config as tc, production_config as pc
@@ -52,9 +53,13 @@ def error_estimation():
             name = bfc.name_comp if p_target == bfc.positive_target_comp else bfc.name_day
             check_range(y_pred[i][p_target], y_test[i], threshold, f1_th, name, index_list[i], n_target, p_target, errors)
 
-    pd.DataFrame(errors, columns=tc.col_names).to_csv(tc.path_save_errors, index=False)
+    pd.DataFrame(errors, columns=tc.col_names) \
+      .sort_values(tc.col_names[:2], ascending=True) \
+      .drop_duplicates(subset=[pc.index_name], keep="last") \
+      .to_csv(tc.path_save_errors, index=False)
     print(">> performance of the errors are saved in " + tc.path_save_errors)
 
 
 if __name__ == "__main__":
     error_estimation()
+    exit(0)

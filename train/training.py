@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+
+"""
+@Author: Miro
+@Date: 09/06/2022
+@Version: 1.4
+@Objective: training loop per allenare il modello
+@TODO: soglia automatica del medio livello
+"""
+
+import pickle
+import random
+from datetime import datetime
+import numpy as np
+import pandas as pd
+from sys import exit
+from sklearn.metrics import make_scorer
+from configs import production_config as pc, train_config as tc
+from load_dataset_split import load_dataset_split as load_ds, split_dataset
+from models_definition import compile_model_voting, random_search_training
+from performance_analysis import test_performance
+from plots_train import plots_performance
+from threshold_finder import ThresholdFinder, my_custom_loss_func
+
+
+def smote_over_sampling(data, target, smote_model=tc.smote_model):
+    print("\n>> smote implemented\n")
+    x_resample, y_resample = smote_model.fit_resample(np.array(data.values.tolist()), np.array(target.values.tolist()))
+    target = pd.DataFrame(y_resample, columns=target.columns)
+    data = pd.DataFrame(x_resample, columns=data.columns)
+    return data, target
+
+
+def model_definition_search(x_train, y_train):
+    print(">> start random search train\n")
+    score = make_scorer(my_custom_loss_func, greater_is_better=True, needs_proba=True)
+    rf_random = random_search_training(score=score)
+    rf_random.fit(x_train, y_train.values.ravel())
+    print(">> best parameters ", rf_random.best_params_)
+    with open(tc.best_parameters_directory, 'w') as f:
+        f.write(str(rf_random.best_params_))
+    return rf_random
+
+
+def model_definition(x_train, y_train):
+    model = compile_model_voting()
+    model.fit(x_train, y_train.values.ravel())
+    return model
+
+
+def group_predictions(x, y, model):
+    y_pred_perc = model.predict_proba(x)
+    x.reset_index(inplace=True)
+    t = pd.DataFrame(y_pred_perc.tolist(), columns=['p0', 'p1', 'p2', 'p3']).astype(float)
+    x = pd.concat([x, y.EVALUATION, t, (t["p1"] + t["p3"])], axis=1, ignore_index=True)
+    x.columns = list(map(str, range(len(x.columns))))
+    last = x.columns[len(x.columns) - 1]
+    x.sort_values(['0', last], ascending=True, inplace=True)
+    x.drop_duplicates(subset=['0'], keep="last", inplace=True)
+    x.set_index(['0'])
+    x.drop(last, axis=1, inplace=True)
+    y_pred_perc = x[x.columns[-4:]].to_numpy()
+    x = x.iloc[:, :-4]
+    y = x[x.columns[-1:]]
+    return y, y_pred_perc
+
+
+def train():
+    start = datetime.now()
+
+    split_dataset()
+
+    x_train_orig, y_train_orig, x_val, y_val, x_test, y_test = load_ds()
+
+    if tc.apply_smote is True:
+        x_train, y_train = smote_over_sampling(x_train_orig, y_train_orig)
+    else:
+        x_train, y_train = x_train_orig, y_train_orig
+
+    if tc.apply_random_search is True:
+        model = model_definition_search(x_train, y_train)
+    else:
+        model = model_definition(x_train, y_train)
+
+    y_val, y_pred_perc = group_predictions(x_val.copy(), y_val.copy(), model)
+    y_test, y_pred_perc_test = group_predictions(x_test.copy(), y_test.copy(), model)
+
+    y_val_arr = np.array(y_val).reshape(len(y_val), )
+    y_test_arr = np.array(y_test).reshape(len(y_test), )
+
+    thresholds = ThresholdFinder(y_pred_perc, y_val_arr, mid_threshold_fix=True, safe_removing=True)
+    thresholds.define_thresholds()
+
+    plots_performance(y_pred_perc_test, y_test_arr, thresholds)
+    test_performance(y_pred_perc_test, y_test_arr, thresholds)
+
+    pickle.dump(model, open(pc.machine_learning_model_path, 'wb'))
+
+    print("\n>> total time for train ", datetime.now() - start, "\n")
+
+
+if __name__ == "__main__":
+    seed = 1
+    random.seed(seed)
+    np.random.seed(seed)
+    train()
+    exit(0)

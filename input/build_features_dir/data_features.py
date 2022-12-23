@@ -18,11 +18,15 @@ from configs import build_features_config as bfc
 class DataFeatures:
     def __init__(self, csv_data, max_elements, production,
                  subject_db, account_db, operations_db,
-                 operations_day_db, target_db):
+                 operations_subjects_db, target_db):
 
         self.production = production
+
         subjects = csv_data.load_subjects(subject_db)
-        self.operations = csv_data.load_operations(operations_db)
+        csv_data.load_row_operations(operations_db)
+        csv_data.load_operations_subjects(operations_subjects_db)
+
+        self.operations = csv_data.load_operations_processed()
         self.eval_subjects_comp, self.eval_subjects_day = csv_data.load_evaluation(target_db)
         if self.eval_subjects_comp.shape[0] > 0:
             self.eval_subjects_comp.drop_duplicates(inplace=True)
@@ -30,7 +34,7 @@ class DataFeatures:
 
         if self.eval_subjects_day.shape[0] > 0:
             self.eval_subjects_day = pd.merge(self.eval_subjects_day, subjects, on="NDG", how="left")
-            operations_day = csv_data.load_operations_day(operations_day_db)
+            operations_day = csv_data.load_operations_day()
             self.eval_subjects_day.IMPORTO = self.eval_subjects_day.IMPORTO.astype(np.float64)
             self.eval_subjects_day = pd.merge(self.eval_subjects_day, operations_day,
                                               how="left", left_on=['DATA_OPERATION', 'NDG', 'IMPORTO'],

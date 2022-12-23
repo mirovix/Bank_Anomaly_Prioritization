@@ -188,7 +188,7 @@ def plot_wrong_predictions(input_plot, bins=20):
         plt.show()
 
 
-def plot_predictions(input_plot, bins=15):
+def plot_predictions(input_plot, bins=20):
     correct_prediction_tp, correct_prediction_tn, threshold, f1_threshold, name, weights = input_plot
 
     fig, ax = plt.subplots(2, 1)

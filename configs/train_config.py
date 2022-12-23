@@ -7,18 +7,22 @@
 """
 
 import numpy as np
-from imblearn.combine import SMOTETomek
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from imblearn.over_sampling import BorderlineSMOTE
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier, \
+    HistGradientBoostingClassifier, ExtraTreesClassifier
+from sklearn.linear_model import SGDClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
+from configs import production_config as pc
 
-plot_directory = 'C:/workspace/AnomalyPrioritization/train/plots/'
-best_parameters_directory = 'C:/workspace/AnomalyPrioritization/train/model_data/best_params.txt'
+plot_directory = pc.base_path + '/plots/'
+best_parameters_directory = pc.base_path + '/model_data/best_params.txt'
 
-name_rf, name_rf_bal, name_knn, name_dt = 'rf', 'rf_bal', 'knn', 'dt'
+name_rf, name_rf_bal, name_knn, name_dt, name_sgd = 'rf', 'rf_bal', 'knn', 'dt', 'sgd'
 
-n_jobs = 2
+n_jobs = 3
 verbose = 1
 apply_smote = False
 apply_random_search = False
@@ -27,36 +31,49 @@ save_plots = True
 x_size_plot = 18
 y_size_plot = 10
 
-fixed_threshold_mid = [0.20, 0.60]
+fixed_threshold_mid = [0.12, 0.52]
 
-# smote oversampling (SMOTETomek, ADASYN, SMOTEENN)
+# smote oversampling (SMOTETomek, ADASYN, SMOTEENN, SVMSMOTE, BorderlineSMOTE)
 
-smote_model = SMOTETomek(n_jobs=n_jobs)
+smote_model = BorderlineSMOTE(n_jobs=n_jobs, random_state=1)
 
 # classifiers
 
-rf_default = RandomForestClassifier()
+rf_default = RandomForestClassifier(n_estimators=200, random_state=1, n_jobs=n_jobs)
 
-dt_default = DecisionTreeClassifier()
+dt_default = DecisionTreeClassifier(random_state=1)
 
-rf_bal_default = RandomForestClassifier(class_weight='balanced')
+rf_bal_default = RandomForestClassifier(class_weight='balanced', random_state=1, n_jobs=n_jobs)
 
-rf_bal = RandomForestClassifier(n_estimators=200, class_weight='balanced')
+rf_bal = RandomForestClassifier(n_estimators=450, class_weight='balanced', random_state=1, bootstrap=True,
+                                min_samples_split=25, min_samples_leaf=25, n_jobs=n_jobs)
 
-rf = RandomForestClassifier(n_estimators=200)
+rf = RandomForestClassifier(n_estimators=450, random_state=1, bootstrap=True, n_jobs=n_jobs)
 
-dt = DecisionTreeClassifier(class_weight='balanced')
+dt = DecisionTreeClassifier(class_weight='balanced', random_state=1)
 
-knn = KNeighborsClassifier()
+knn = KNeighborsClassifier(n_neighbors=8, n_jobs=n_jobs, weights='distance')
 
-svc = SVC(kernel='rbf', probability=True, class_weight='balanced')
+svc = SVC(kernel='rbf', probability=True, class_weight='balanced', random_state=1)
 
-gbc = GradientBoostingClassifier(n_estimators=150, verbose=1)
+gbc = GradientBoostingClassifier(n_estimators=200, learning_rate=0.1, verbose=1, random_state=1)
+
+hgbc = HistGradientBoostingClassifier(max_iter=300, learning_rate=0.1, verbose=1, random_state=1,
+                                      l2_regularization=0.02, validation_fraction=0.15,
+                                      min_samples_leaf=20, max_leaf_nodes=80, n_iter_no_change=15)
+
+qda = QuadraticDiscriminantAnalysis()
+
+abc = AdaBoostClassifier()
+
+sgd = SGDClassifier(loss='log_loss')
+
+et = ExtraTreesClassifier(200)
 
 # voting classifier
 
-voting_estimators = [(name_rf, rf), (name_rf_bal, rf_bal), (name_knn, knn), (name_dt, dt)]
-weights = [8, 6, 2, 3.5]
+voting_estimators = [(name_rf, rf), (name_rf_bal, rf_bal), (name_knn, knn), (name_dt, dt), (name_sgd, gbc)]
+weights = [9, 4, 2, 2.5, 4]
 voting = 'soft'
 
 # random search parameters
@@ -103,7 +120,8 @@ random_grid = {
 
 # error performance data configuration
 
-path_save_errors = "C:/workspace/AnomalyPrioritization/test/errors.csv"
+path_save_errors = pc.base_path + "/test/errors.csv"
 soglie = ['Irrilevante', 'Bassa', 'Media', 'Alta']
+production_soglie = {0: 4, 1: 3, 2: 2, 3: 1, pc.not_predicted_value_fascia: 9}
 col_names = ['ID', 'Predizione percentuale [%]', 'Predizione', 'Priorità', 'Effettivo', 'Software']
 da_segnalare_name, da_non_segnalare_name = "Da segnalare", "Non da segnalare"

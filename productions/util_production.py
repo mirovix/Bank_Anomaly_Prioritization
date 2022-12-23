@@ -11,29 +11,25 @@
 import base64
 import pickle
 from datetime import datetime
-import numpy as np
 import pandas as pd
 import requests
 from dateutil.relativedelta import relativedelta
-from anomaly_info_extractor import concatenate_xml_predictions
 from configs import production_db_config as pdbc, production_config as pc
-from predict_anomaly import load_model, predict_model
+from productions.predict_anomaly import load_model, predict_model
 
 model, threshold_comp, threshold_day = load_model()
 
 
-def set_view_index(code_bank, view_path=pc.view_path, index_path=pc.index_path):
+def set_view_index(code_bank, engine, view_path=pc.view_path, index_path=pc.index_path):
     sql_index, sql_view = read_query(index_path).split(';'), read_query(view_path).split(';')
     try:
-        for sql in sql_index: pc.engine_dwa_single.execute(sql)
+        for sql in sql_index: engine.execute(sql)
         print(">> index completed\n")
     except Exception:
         print(">> index not computed or done previously")
 
     try:
-        for i in range(4): pc.engine_dwa_single.execute(sql_view[i] % ("'" + str(code_bank) + "'"))
-        for i in range(4, 6): pc.engine_dwa_single.execute(sql_view[i])
-        pc.engine_rx_input.execute(sql_view[6] + pc.rx_input_production_name)
+        for sql in sql_view: engine.execute(sql % ("'" + str(code_bank) + "'"))
         print(">> view completed\n")
     except Exception:
         print(">> view not computed or done previously\n")
@@ -49,11 +45,7 @@ def range_date(data):
                                                hours=data_anomaly.hour, minutes=data_anomaly.minute,
                                                seconds=data_anomaly.second,
                                                microseconds=data_anomaly.microsecond)
-    start_range_day = data_anomaly - relativedelta(days=6,
-                                                   hours=data_anomaly.hour, minutes=data_anomaly.minute,
-                                                   seconds=data_anomaly.second,
-                                                   microseconds=data_anomaly.microsecond)
-    return start_range, end_range, start_range_day
+    return start_range, end_range
 
 
 def read_query(path):
@@ -75,42 +67,21 @@ def ndg_query_exe(ndg):
     return ndg_query
 
 
-def query_composition(querys_path, target_db_comp, target_db_day, target_db):
-    data_op_comp, data_op_day, data_op_day_info = None, None, None
-
+def query_composition(querys_path, target_db):
     sql_file = read_query(querys_path)
     sql_commands = sql_file.split(';')
 
     ndg = list(dict.fromkeys(target_db.NDG.values.tolist()[:pc.max_elements]))
     ndg_query = ndg_query_exe(ndg)
+    start_range, end_range = range_date(target_db.DATA.values.tolist())
+    date_query = query_date_range(start_range, end_range)
 
-    sql_commands[0] += ndg_query
-    sql_commands[1] += ndg_query
+    sql_commands[0] += ndg_query + '))'
+    sql_commands[1] += ndg_query + ')'
+    sql_commands[2] += ndg_query + date_query
+    sql_commands[3] += ndg_query + ')' + date_query
 
-    if target_db_comp.shape[0] > 0:
-        start_range_comp, end_range_comp, _ = range_date(target_db_comp.DATA.values.tolist()[:pc.max_elements_test])
-        ndg_comp = list(dict.fromkeys(target_db_comp.NDG.values.tolist()[:pc.max_elements]))
-        data_op_comp = sql_commands[2] + ndg_query_exe(ndg_comp) + query_date_range(start_range_comp, end_range_comp)
-    if target_db_day.shape[0] > 0:
-        start_range_day, end_range_day, start_range_day_info = range_date(target_db_day.DATA.values.tolist()[:pc.max_elements_test])
-        ndg_day = list(dict.fromkeys(target_db_day.NDG.values.tolist()[:pc.max_elements]))
-        data_op_day = sql_commands[2] + ndg_query_exe(ndg_day) + query_date_range(start_range_day, end_range_day)
-        data_op_day_info = sql_commands[3] + ndg_query_exe(ndg_day) + query_date_range(start_range_day_info, end_range_day)
-
-    return sql_commands, data_op_comp, data_op_day, data_op_day_info
-
-
-def write_result(input_predictions, input_rx, query_output_name=pc.rx_output_production_name):
-    try:
-        input_predictions.replace(np.nan, None, inplace=True)
-        for index, row in input_predictions.iterrows():
-            input_rx.at[row.ID, pc.xml_col_name] = concatenate_xml_predictions(row.CONTENUTO,
-                                                                               row.percentuale,
-                                                                               row.fascia)
-        input_rx = input_rx.reset_index(level=0)
-        input_rx.to_sql(query_output_name, con=pc.engine_rx_output, if_exists='append', index=False)
-    except Exception:
-        print(">> error: something wrong happened in writing result")
+    return sql_commands
 
 
 def ws_prediction(data_processed, url=pdbc.web_service_url, timeout=pdbc.web_service_time_out):

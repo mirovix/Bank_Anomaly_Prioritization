@@ -18,6 +18,7 @@ Libraries
     7. Flask --v 2.1.3
     8. Imblearn --v 0.9.1
     9. Missingno --v 0.5.1
+    10. Sqlalchemy --v 1.4.39
 ******************************************************
 
 """
@@ -31,6 +32,7 @@ import pandas as pd
 import flask
 import imblearn as imb
 import missingno as msn
+import sqlalchemy
 
 if __name__ == "__main__":
     print("\n>> Python version: ", sys.version)
@@ -42,3 +44,4 @@ if __name__ == "__main__":
     print(">> Flask version:", flask.__version__)
     print(">> Imblearn version:", imb.__version__)
     print(">> Missingno version:", msn.__version__)
+    print(">> Sqlalchemy version:", sqlalchemy.__version__)

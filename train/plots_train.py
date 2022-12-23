@@ -9,6 +9,7 @@
 """
 
 import numpy as np
+import pandas as pd
 from sklearn.metrics import precision_recall_fscore_support, accuracy_score, confusion_matrix
 from configs import build_features_config as bfc
 from functions_plot import plot_table_soglie, plot_confusion_matrix, plot_roc
@@ -47,7 +48,8 @@ def distribution_anomaly(y_model, y_target, thresholds, day=False):
         th_list = thresholds.to_list_day()
 
     for i in range(y_target.shape[0]):
-        compute_soglie_predictions(y_model[i], y_target[i], th_list_without_f1, pos_target, neg_target, soglie_predictions)
+        compute_soglie_predictions(y_model[i], y_target[i], th_list_without_f1, pos_target, neg_target,
+                                   soglie_predictions)
         compute_soglie_errors(y_model[i], y_target[i], th_list, pos_target, neg_target, soglie_errors)
 
     return soglie_predictions, soglie_errors, th_list_without_f1, name
@@ -64,6 +66,20 @@ def roc_process_plot(y_pred, y_test_arr, day=False):
 
 
 def plots_performance(y_pred_perc, y_test_arr, thresholds):
+    plot_table_soglie(distribution_anomaly(y_pred_perc, y_test_arr, thresholds))
+    plot_table_soglie(distribution_anomaly(y_pred_perc, y_test_arr, thresholds, day=True))
+
+    pd_y_perc = pd.DataFrame(y_pred_perc)
+    pd_y_test = pd.DataFrame(y_test_arr.transpose())
+    y = pd.concat([pd_y_perc, pd_y_test], axis=1, ignore_index=True)
+    y.columns = list(map(str, list(range(5))))
+    cond_comp = (y['4'] < 2) & (thresholds.upper_comp > y['1']) & (y['1'] > thresholds.lower_comp)
+    cond_day = (y['4'] > 1) & (thresholds.upper_day > y['3']) & (y['3'] > thresholds.lower_day)
+    y.drop(y.loc[cond_comp | cond_day].index, inplace=True)
+
+    y_pred_perc = y.iloc[:, :4].to_numpy()
+    y_test_arr = y.iloc[:, -1:].to_numpy()
+
     y_pred = from_threshold_to_pred(y_pred_perc, thresholds.f1_comp, thresholds.f1_day)
 
     print("\n>> model accuracy ", accuracy_score(y_test_arr, y_pred))
@@ -76,6 +92,3 @@ def plots_performance(y_pred_perc, y_test_arr, thresholds):
     roc_process_plot(y_pred, y_test_arr, day=True)
 
     # plot_feature_importance(classifier.feature_importances_, x_test.columns)
-
-    plot_table_soglie(distribution_anomaly(y_pred_perc, y_test_arr, thresholds))
-    plot_table_soglie(distribution_anomaly(y_pred_perc, y_test_arr, thresholds, day=True))

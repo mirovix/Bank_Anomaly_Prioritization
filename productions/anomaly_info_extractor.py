@@ -12,6 +12,7 @@ import xml.etree.ElementTree as et
 from datetime import datetime
 import numpy as np
 import pandas as pd
+from sys import exit
 from configs import production_config as pc, train_config as tc
 
 
@@ -23,34 +24,44 @@ def find_attributes(root, name_template):
     return att_dict
 
 
-def concatenate_xml_predictions(input_xml_string, percentuale_value, fascia_value):
-    root = et.Element("group")
+def define_xml_prediction(percentuale_value, fascia_value):
+    root = et.Element("Gruppo")
 
-    id_group = et.Element("id")
-    id_group.text = "Indice Predittivo"
-    root.append(id_group)
-
-    def_desc = et.Element("defaultDescription")
+    def_desc = et.Element("Etichetta")
     def_desc.text = "Indice Predittivo"
     root.append(def_desc)
 
     attributes = et.Element("attributes")
 
-    simple = et.SubElement(attributes, "simple")
-    default_description = et.SubElement(simple, "defaultDescription")
-    default_description.text = "Percentuale indice predittivo"
-    value = et.SubElement(simple, "value")
+    simple = et.SubElement(attributes, "Attributo")
+    default_description = et.SubElement(simple, "Etichetta")
+    default_description.text = "Priority Rating"
+    value = et.SubElement(simple, "Valore")
     value.text = str(percentuale_value)
 
-    simple = et.SubElement(attributes, "simple")
-    default_description = et.SubElement(simple, "defaultDescription")
-    default_description.text = "Fascia indice predittivo"
-    value = et.SubElement(simple, "value")
-    value.text = tc.soglie[fascia_value]
+    simple = et.SubElement(attributes, "Attributo")
+    default_description = et.SubElement(simple, "Etichetta")
+    default_description.text = "Priority Score"
+    value = et.SubElement(simple, "Valore")
+    value.text = str(tc.production_soglie[fascia_value])
 
     root.append(attributes)
+    return root
 
-    return input_xml_string + et.tostring(et.ElementTree(root).getroot(), encoding="unicode")
+
+def concatenate_xml_predictions(input_xml_string, score_value, fascia_value):
+    main_root = et.fromstring(input_xml_string)
+    table_node = [define_xml_prediction(score_value, fascia_value)]
+
+    for main_node in main_root.iter('attributes'):
+        for node in main_node.iter('table'):
+            table_node.append(node)
+            main_node.remove(node)
+
+    for e in main_root.findall('attributes'):
+        for node in table_node: e.append(node)
+
+    return et.tostring(et.ElementTree(main_root).getroot())
 
 
 def from_xml_to_target(input_xml_string, index, comportamenti=False, day=False):
@@ -65,16 +76,14 @@ def from_xml_to_target(input_xml_string, index, comportamenti=False, day=False):
     stato = {pc.xml_names['stato']: str('NOT_EVALUATED')}
 
     if comportamenti is True:
-        amount_table, amount = root.findall('attributes/table/row'), 0.0
-        for item in amount_table: amount += float(item[1].text)
         att_dict = find_attributes(root, pc.dict_target_comp)
-        dict_xml.update({pc.xml_names['importo']: str(format(amount, '.2f'))})
+        dict_xml.update({pc.xml_names['importo']: str(format(float(att_dict['amount']), '.2f'))})
         dict_xml.update(data)
         dict_xml.update(stato)
         dict_xml.update({pc.xml_names['ndg']: att_dict['NDG']})
     elif day is True:
         att_dict = find_attributes(root, pc.dict_target)
-        dict_xml.update({pc.xml_names['importo']: att_dict['amount']})
+        dict_xml.update({pc.xml_names['importo']: str(format(float(att_dict['amount']), '.2f'))})
         dict_xml.update(data)
         dict_xml.update(stato)
         dict_xml.update({pc.xml_names['ndg']: att_dict['NDG']})
@@ -84,6 +93,19 @@ def from_xml_to_target(input_xml_string, index, comportamenti=False, day=False):
     else:
         return
     return dict_xml
+
+
+def write_result(input_predictions, input_rx, query_output_name=pc.rx_output_production_name):
+    try:
+        input_predictions.replace(np.nan, None, inplace=True)
+        for index, row in input_predictions.iterrows():
+            input_rx.at[row.ID, pc.xml_col_name] = concatenate_xml_predictions(row.CONTENUTO,
+                                                                               row.score,
+                                                                               row.fascia)
+        input_rx = input_rx.reset_index(level=0)
+        input_rx.to_sql(query_output_name, con=pc.engine_rx_output, if_exists='append', index=False)
+    except Exception:
+        print(">> error: something wrong happened in writing result")
 
 
 def build_target(sql, engine, max_elements=None):
@@ -106,13 +128,17 @@ def build_target(sql, engine, max_elements=None):
 
     dict_xml_day, dict_xml_comp, i = [], [], 0
     if max_elements is None: max_elements = xml_template.shape[0]
-    for index, row in xml_template.iterrows():
-        if i > max_elements: break
-        i += 1
+
+    for index, row in xml_template.head(max_elements).iterrows():
         if row.SYSTEM.replace(' ', '') == pc.system_comp_name:
             dict_xml_comp.append(from_xml_to_target(row.CONTENUTO, index, comportamenti=True))
         elif row.SYSTEM.replace(' ', '') == pc.system_day_name:
             dict_xml_day.append(from_xml_to_target(row.CONTENUTO, index, day=True))
         else:
             continue
+
+    if len(dict_xml_day) + len(dict_xml_comp) < 1:
+        write_result(pd.DataFrame(), xml_template.head(max_elements))
+        return None, None, None
+
     return pd.DataFrame(dict_xml_comp), pd.DataFrame(dict_xml_day), xml_template.head(max_elements)

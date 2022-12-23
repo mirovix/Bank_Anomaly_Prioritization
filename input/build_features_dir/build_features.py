@@ -11,8 +11,8 @@
 import pandas as pd
 from datetime import datetime
 from configs import build_features_config as bfc, production_config as pc
-from data_features import DataFeatures
-from day_feature_build import DayFeatureBuild
+from build_features_dir.data_features import DataFeatures
+from build_features_dir.day_feature_build import DayFeatureBuild
 from build_features_dir.operations_accounts_feature_build import OperationsAccountsFeatureBuild
 from build_features_dir.evaluation_anagrafica_feature_build import EvaluationAnagraficaFeatureBuild
 
@@ -20,13 +20,13 @@ from build_features_dir.evaluation_anagrafica_feature_build import EvaluationAna
 class BuildFeatures:
     def __init__(self, csv_data, max_elements=None, production=False,
                  subject_db=None, account_db=None, operations_db=None,
-                 operations_day_db=None, target_db=None):
+                 operations_subjects_db=None, target_db=None):
 
         start = datetime.now()
 
         self.data = DataFeatures(csv_data, max_elements, production,
                                  subject_db, account_db, operations_db,
-                                 operations_day_db, target_db)
+                                 operations_subjects_db, target_db)
 
         print(">> input files loaded in ", datetime.now() - start)
         self.print_info()
@@ -98,7 +98,7 @@ class BuildFeatures:
                 comp_col_x = list(set(self.data.x.columns.values.tolist()) - set(bfc.day_col_x_only))
             self.fill_identificativi_vari(bfc.fill_with_string, comp_col_x, day_col_x)
         else:
-            for col in bfc.day_col_x_only: self.data.x.insert(0, col, [], True)
+            self.data.x = pd.concat([pd.DataFrame(columns=bfc.day_col_x_only), self.data.x], axis=1)
             bfc.day_col_x_only += comportamenti_x.columns.values.tolist()
             day_col_x = bfc.day_col_x_only
 
@@ -140,6 +140,7 @@ class BuildFeatures:
             elements_day, elements_comp = 0, None
 
         self.get_dataset_day_comportamenti(elements_day, elements_comp)
+        self.data.x.ID = self.data.x.ID.astype(int)
         self.data.x.set_index(pc.index_name, inplace=True)
 
         if self.data.production is False: return self.data.x, self.data.y

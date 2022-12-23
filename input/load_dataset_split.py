@@ -55,3 +55,4 @@ def load_dataset_split(test=False):
 
 if __name__ == "__main__":
     split_dataset()
+    exit(0)

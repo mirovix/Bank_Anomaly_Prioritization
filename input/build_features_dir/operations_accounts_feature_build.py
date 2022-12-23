@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 import sys
 from dateutil.relativedelta import relativedelta
-from data_features import range_date
+from build_features_dir.data_features import range_date
 from build_features_dir.operations_accounts_feature_definition import OperationsAccountsFeatureDefinition as oafs
 
 
@@ -49,6 +49,7 @@ class OperationsAccountsFeatureBuild:
         if type_operations_account == 1: date = table.DATE_OPERATION
         else: date = table.START_DATE
 
+        date = date.dropna().astype(str)
         query_conditions = (date < str(start_range)) & (date > str(end_range)) & ndg_condition
         return table[query_conditions]
 

@@ -11,9 +11,10 @@
 import pickle
 import sys
 import pandas as pd
+from sys import exit
 from datetime import datetime
 from configs import production_config as pc, build_features_config as bfc
-from threshold_finder import ThresholdFinder
+from train.threshold_finder import ThresholdFinder
 
 
 def load_model():
@@ -22,9 +23,11 @@ def load_model():
     threshold_comp = threshold_finder.to_list_comportamenti(flag_f1=False)
     threshold_day = threshold_finder.to_list_day(flag_f1=False)
     try:
-        model = pickle.load(open(pc.machine_learning_model_path, 'rb'))
+        input_model = open(pc.machine_learning_model_path, 'rb')
+        model = pickle.load(input_model)
+        input_model.close()
     except FileNotFoundError:
-        print(f"File {pc.machine_learning_model_path} not found.  Aborting")
+        print(f">> file {pc.machine_learning_model_path} not found")
         sys.exit(1)
     return model, threshold_comp, threshold_day
 
@@ -44,7 +47,7 @@ def predict_model(input_model, model, threshold_comp, threshold_day):
         else:
             pos_label = bfc.positive_target_day
             thresholds = threshold_day
-        prediction_value = float("{:.3f}".format(single_prediction[pos_label]))
+        prediction_value = float("{:.4f}".format(single_prediction[pos_label]))
         for j in range(len(thresholds)-1):
             if thresholds[j] < single_prediction[pos_label] <= thresholds[j+1]:
                 result.append((index[i], prediction_value, j))
@@ -52,15 +55,21 @@ def predict_model(input_model, model, threshold_comp, threshold_day):
     return result
 
 
-def test(x=None, num_elements=100):
+def test_prediction(x=None, num_elements=100, print_prediction=False):
     start = datetime.now()
     if x is None:
         x = pd.read_csv(bfc.path_x_test, low_memory=False, index_col=[pc.index_name]).head(num_elements)
     model, threshold_comp, threshold_day = load_model()
     prediction = predict_model(x, model, threshold_comp, threshold_day)
-    print(">> prediction: ", prediction)
-    print("\n>> total time ", datetime.now() - start, "\n")
+    prediction_df = pd.DataFrame(prediction, columns=pc.col_name) \
+                    .astype(pc.dtype_col) \
+                    .sort_values(pc.col_name, ascending=True) \
+                    .drop_duplicates(subset=[pc.index_name], keep="last")
+    if print_prediction is True:
+        print(">> prediction: ", prediction)
+        print("\n>> total time ", datetime.now() - start, "\n")
+    return prediction_df
 
 
 if __name__ == "__main__":
-    test()
+    test_prediction(print_prediction=True)
